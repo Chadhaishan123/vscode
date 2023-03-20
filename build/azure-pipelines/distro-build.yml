@@ -11,7 +11,7 @@ steps:
     inputs:
       versionSpec: "16.x"
   - template: ./distro/download-distro.yml
-  - script: node build/azure-pipelines/distro/apply-patches
+  - script: node build/azure-pipelines/distro/apply-cli-patches
     displayName: Apply distro patches
   - script: yarn --frozen-lockfile --check-files
     workingDirectory: .build/distro/npm

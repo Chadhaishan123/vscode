@@ -10,11 +10,11 @@ function log(...args: any[]): void {
 	console.log(`[${new Date().toLocaleTimeString('en', { hour12: false })}]`, '[distro]', ...args);
 }
 
-log(`Applying distro patches...`);
+log(`Applying CLI patches...`);
 
-const basePath = `.build/distro/patches`;
+const basePath = `.build/distro/cli-patches`;
 
 for (const patch of fs.readdirSync(basePath)) {
 	cp.execSync(`git apply --ignore-whitespace --ignore-space-change ${basePath}/${patch}`, { stdio: 'inherit' });
-	log('Applied patch:', patch, '✔︎');
+	log('Applied CLI patch:', patch, '✔︎');
 }
