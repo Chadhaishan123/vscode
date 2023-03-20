@@ -13,12 +13,3 @@ steps:
   - template: ./distro/download-distro.yml
   - script: node build/azure-pipelines/distro/apply-cli-patches
     displayName: Apply distro patches
-  - script: yarn --frozen-lockfile --check-files
-    workingDirectory: .build/distro/npm
-    displayName: Install distro node modules
-  - script: node build/azure-pipelines/distro/mixin-npm
-    displayName: Mixin distro node modules
-  - script: node build/azure-pipelines/distro/mixin-quality
-    env:
-      VSCODE_QUALITY: stable
-    displayName: Mixin distro quality

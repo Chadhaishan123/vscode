@@ -97,12 +97,6 @@ stages:
               CHILD_CONCURRENCY: 1
             displayName: Install dependencies
 
-          - script: yarn --frozen-lockfile --check-files
-            workingDirectory: .build/distro/npm
-            env:
-              npm_config_arch: $(NPM_ARCH)
-            displayName: Install distro node modules
-
           - script: node build/azure-pipelines/distro/mixin-npm
             displayName: Mixin distro node modules
 
