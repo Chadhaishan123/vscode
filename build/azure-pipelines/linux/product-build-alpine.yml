@@ -18,44 +18,16 @@ steps:
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
 
-  - script: |
-      set -e
-      tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+  - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
     displayName: Extract compilation output
-
-  - task: Docker@1
-    displayName: "Pull image"
-    inputs:
-      azureSubscriptionEndpoint: "vscode-builds-subscription"
-      azureContainerRegistry: vscodehub.azurecr.io
-      command: "Run an image"
-      imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"
-      containerCommand: uname
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  # In Alpine, we always want to setup and authenticate against the NPM_REGISTRY
-  # because of the Prebuild step, since it always runs `yarn` from inside an alpine
-  # container
-  - script: |
-      set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      npm config set always-auth=true --location=project
-      yarn config set registry "$NPM_REGISTRY"
-    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
-
-  - task: npmAuthenticate@0
-    inputs:
-      workingFile: .npmrc
-    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM Authentication
-
   - script: |
       mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js "alpine" > .build/yarnlockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js alpine $VSCODE_ARCH > .build/yarnlockhash
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare cache inputs
 
@@ -72,32 +44,50 @@ steps:
       path: .build/builtInExtensions
     displayName: Restore built-in extensions
 
-  - script: |
-      set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
+  - script: tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
   - script: |
       set -e
+      npm config set registry "$NPM_REGISTRY" --location=project
+      npm config set always-auth=true --location=project
+      yarn config set registry "$NPM_REGISTRY"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM & Yarn
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - script: |
+      set -e
       for i in {1..5}; do # try 5 times
-        yarn --frozen-lockfile --check-files --check-files && break
+        yarn --cwd build --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
           exit 1
         fi
         echo "Yarn failed $i, trying again..."
       done
-    env:
-      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Install dependencies
+    displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
     displayName: "Register Docker QEMU"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_ARCH'], 'arm64'))
+
+  - task: Docker@1
+    inputs:
+      azureSubscriptionEndpoint: "vscode-builds-subscription"
+      azureContainerRegistry: vscodehub.azurecr.io
+      command: "Run an image"
+      imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"
+      containerCommand: uname
+    displayName: "Pull image"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
@@ -105,7 +95,7 @@ steps:
       sudo chown -R $(id -u):$(id -g) remote/node_modules .build/distro/npm/remote/.yarnrc .build/distro/npm/remote/node_modules
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Recompile for Alpine
+    displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: node build/azure-pipelines/distro/mixin-npm
@@ -120,56 +110,32 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  - script: node build/lib/builtInExtensions.js
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Download built-in extensions
-
   - script: |
       set -e
-
-      case $VSCODE_ARCH in
-        x64)
-          reh='vscode-reh-linux-alpine-min-ci'
-          rehweb='vscode-reh-web-linux-alpine-min-ci'
-          ;;
-        arm64)
-          reh='vscode-reh-alpine-arm64-min-ci'
-          rehweb='vscode-reh-web-alpine-arm64-min-ci'
-          ;;
-      esac
-
-      yarn gulp $reh
-      yarn gulp $rehweb
+      TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64")
+      yarn gulp vscode-reh-$TARGET-min-ci
+      yarn gulp vscode-reh-web-$TARGET-min-ci
     displayName: Build
 
   - script: |
       set -e
+      TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64")
       REPO="$(pwd)"
       ROOT="$REPO/.."
 
-      case $VSCODE_ARCH in
-        x64)
-          PLATFORM_LINUX='linux-alpine'
-          ;;
-        arm64)
-          PLATFORM_LINUX='alpine-arm64'
-          ;;
-      esac
-
       # Publish Remote Extension Host
-      LEGACY_SERVER_BUILD_NAME="vscode-reh-$PLATFORM_LINUX"
-      SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX"
-      SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX.tar.gz"
+      LEGACY_SERVER_BUILD_NAME="vscode-reh-$TARGET"
+      SERVER_BUILD_NAME="vscode-server-$TARGET"
+      SERVER_TARBALL_FILENAME="vscode-server-$TARGET.tar.gz"
       SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
 
       rm -rf $ROOT/vscode-server-*.tar.*
       (cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
 
       # Publish Remote Extension Host (Web)
-      LEGACY_SERVER_BUILD_NAME="vscode-reh-web-$PLATFORM_LINUX"
-      SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX-web"
-      SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX-web.tar.gz"
+      LEGACY_SERVER_BUILD_NAME="vscode-reh-web-$TARGET"
+      SERVER_BUILD_NAME="vscode-server-$TARGET-web"
+      SERVER_TARBALL_FILENAME="vscode-server-$TARGET-web.tar.gz"
       SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
 
       rm -rf $ROOT/vscode-server-*-web.tar.*

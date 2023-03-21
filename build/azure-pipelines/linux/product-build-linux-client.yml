@@ -86,9 +86,7 @@ steps:
       path: .build/builtInExtensions
     displayName: Restore built-in extensions
 
-  - script: |
-      set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
+  - script: tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
@@ -97,18 +95,17 @@ steps:
       npm config set registry "$NPM_REGISTRY" --location=project
       npm config set always-auth=true --location=project
       yarn config set registry "$NPM_REGISTRY"
-    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM & Yarn
 
   - task: npmAuthenticate@0
     inputs:
       workingFile: .npmrc
-    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
   - script: |
       set -e
-      node build/npm/setupBuildYarnrc
       for i in {1..5}; do # try 5 times
         yarn --cwd build --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
@@ -118,6 +115,7 @@ steps:
         echo "Yarn failed $i, trying again..."
       done
     displayName: Install build dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
@@ -255,9 +253,7 @@ steps:
         displayName: Build deb, rpm packages
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - script: |
-          set -e
-          yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+      - script: yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
         displayName: Prepare snap package
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
@@ -270,16 +266,11 @@ steps:
         displayName: Download ESRPClient
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - script: |
-          set -e
-          node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
+      - script: node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
         displayName: Codesign rpm
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - script: |
-          set -e
-          VSCODE_ARCH="$(VSCODE_ARCH)" \
-          ./build/azure-pipelines/linux/prepare-publish.sh
+      - script: ./build/azure-pipelines/linux/prepare-publish.sh
         displayName: Prepare for Publish
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
