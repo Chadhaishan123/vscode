@@ -17,6 +17,10 @@ if [ -d .build/distro/npm/remote ]; then
   echo "Installing distro remote dependencies"
   (cd .build/distro/npm/remote && rm -rf node_modules)
 
+  if [ -f remote/.yarnrc ]; then
+    cp remote/.yarnrc .build/distro/npm/remote/.yarnrc
+  fi
+
   for i in {1..5}; do # try 5 times
     yarn --cwd .build/distro/npm/remote --frozen-lockfile --check-files && break
     if [ $i -eq 3 ]; then
