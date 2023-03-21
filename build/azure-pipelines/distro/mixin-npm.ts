@@ -22,6 +22,7 @@ function mixin(mixinPath: string) {
 	const distroPackageJson = JSON.parse(fs.readFileSync(`${mixinPath}/package.json`, 'utf8'));
 	const targetPath = path.relative('.build/distro/npm', mixinPath);
 
+	// TODO@joaomoreno: remove
 	console.log(`./${targetPath}`, fs.statSync(`./${targetPath}`));
 	console.log(`./${targetPath}/node_modules`, fs.statSync(`./${targetPath}/node_modules`));
 
