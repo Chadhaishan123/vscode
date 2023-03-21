@@ -41,7 +41,7 @@ export async function downloadExplorerAppx(outDir: string, quality: string = 'st
 	});
 
 	d(`unpacking from ${fileName}`);
-	await extract(artifact, { dir: outDir });
+	await extract(artifact, { dir: fs.realpathSync(outDir) });
 }
 
 async function main(outputDir?: string): Promise<void> {
