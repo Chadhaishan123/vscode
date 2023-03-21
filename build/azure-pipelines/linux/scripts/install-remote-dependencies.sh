@@ -2,7 +2,7 @@
 set -e
 
 echo "Installing remote dependencies"
-(cd remote && rm -rf node_modules)
+rm -rf remote/node_modules
 
 for i in {1..5}; do # try 5 times
   yarn --cwd remote --frozen-lockfile --check-files && break
@@ -15,7 +15,7 @@ done
 
 if [ -d .build/distro/npm/remote ]; then
   echo "Installing distro remote dependencies"
-  (cd .build/distro/npm/remote && rm -rf node_modules)
+  rm -rf .build/distro/npm/remote/node_modules
 
   if [ -f remote/.yarnrc ]; then
     cp remote/.yarnrc .build/distro/npm/remote/.yarnrc

@@ -22,6 +22,9 @@ function mixin(mixinPath: string) {
 	const distroPackageJson = JSON.parse(fs.readFileSync(`${mixinPath}/package.json`, 'utf8'));
 	const targetPath = path.relative('.build/distro/npm', mixinPath);
 
+	console.log(`./${targetPath}`, fs.statSync(`./${targetPath}`));
+	console.log(`./${targetPath}/node_modules`, fs.statSync(`./${targetPath}/node_modules`));
+
 	for (const dependency of Object.keys(distroPackageJson.dependencies)) {
 		fs.rmSync(`./${targetPath}/node_modules/${dependency}`, { recursive: true, force: true });
 		fs.cpSync(`${mixinPath}/node_modules/${dependency}`, `./${targetPath}/node_modules/${dependency}`, { recursive: true, force: true });
