@@ -51,14 +51,13 @@ steps:
           archiveFilePatterns: "$(Build.ArtifactStagingDirectory)/compilation.tar.gz"
           cleanDestinationFolder: false
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/setup-npm-registry.js $env:NPM_REGISTRY }
+  - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
   - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
       if (!(Test-Path ".build")) { New-Item -Path ".build" -ItemType Directory }
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js $(VSCODE_ARCH) > .build/yarnlockhash
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
@@ -80,10 +79,7 @@ steps:
       path: .build/builtInExtensions
     displayName: Restore built-in extensions
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { 7z.exe x .build/node_modules_cache/cache.7z -aos }
+  - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aos
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
@@ -145,21 +141,13 @@ steps:
         retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-          exec { yarn gulp "transpile-client-swc" "transpile-extensions" }
+      - powershell: yarn gulp "transpile-client-swc" "transpile-extensions"
+        env:
+          VSCODE_MIXIN_PASSWORD: "$(github-distro-mixin-password)"
         displayName: Transpile
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $env:VSCODE_EXPLORER_APPX_DIR=$(Join-Path $pwd.Path ".build/win32/appx")
-          exec { node build/win32/explorer-appx-fetcher }
-        env:
-          VSCODE_ARCH: "$(VSCODE_ARCH)"
+      - powershell: node build/win32/explorer-appx-fetcher .build/win32/appx
         displayName: Download Explorer Sparse Package
         condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
@@ -225,8 +213,8 @@ steps:
         displayName: Build Server
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-      - template: product-build-win32-test.yml
+  - ? ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}
+    : - template: product-build-win32-test.yml
         parameters:
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
@@ -256,24 +244,15 @@ steps:
         displayName: Find ESRP CLI
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node' }
+      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
         displayName: Codesign
 
-  - ${{ if and(eq(parameters.VSCODE_QUALITY, 'insider'), eq(parameters.VSCODE_PUBLISH, true)) }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx' }
+  - ? ${{ if and(eq(parameters.VSCODE_QUALITY, 'insider'), eq(parameters.VSCODE_PUBLISH, true)) }}
+    : - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx'
         displayName: Codesign context menu appx package
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-archive" }
+      - powershell: yarn gulp "vscode-win32-$(VSCODE_ARCH)-archive"
         displayName: Package archive
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
@@ -288,10 +267,7 @@ steps:
         displayName: Package setups
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          .\build\azure-pipelines\win32\prepare-publish.ps1
+      - powershell: .\build\azure-pipelines\win32\prepare-publish.ps1
         displayName: Publish
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
