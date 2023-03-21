@@ -10,12 +10,12 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - template: ./distro/download-distro.yml
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "github-distro-mixin-password"
+      - task: AzureKeyVault@1
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: "vscode-builds-subscription"
+          KeyVaultName: vscode-build-secrets
+          SecretsFilter: "github-distro-mixin-password"
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -97,6 +97,10 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+      - script: yarn --cwd build compile && ./.github/workflows/check-clean-git-state.sh
+        displayName: Check /build/ folder
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: node build/azure-pipelines/distro/mixin-quality
         displayName: Mixin distro quality
@@ -111,13 +115,6 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Compile & Hygiene
 
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          yarn --cwd build compile
-          ./.github/workflows/check-clean-git-state.sh
-        displayName: Check /build/ folder
-
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: |
           set -e
@@ -126,7 +123,6 @@ steps:
         displayName: Compile test suites
         condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - task: AzureCLI@2
         inputs:
           azureSubscription: "vscode-builds-subscription"
@@ -138,7 +134,6 @@ steps:
             Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
             Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: |
           set -e
           AZURE_STORAGE_ACCOUNT="ticino" \
@@ -148,28 +143,23 @@ steps:
             node build/azure-pipelines/upload-sourcemaps
         displayName: Upload sourcemaps
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: ./build/azure-pipelines/common/extract-telemetry.sh
         displayName: Extract Telemetry
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: tar -cz --ignore-failed-read --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
         displayName: Compress compilation artifact
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - task: PublishPipelineArtifact@1
         inputs:
           targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
           artifactName: Compilation
         displayName: Publish compilation artifact
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: yarn download-builtin-extensions-cg
         env:
           VSCODE_MIXIN_PASSWORD: "$(github-distro-mixin-password)"
         displayName: Built-in extensions component details
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
         displayName: "Component Detection"
         inputs:
