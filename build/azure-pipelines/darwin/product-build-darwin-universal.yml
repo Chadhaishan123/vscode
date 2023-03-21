@@ -74,9 +74,7 @@ steps:
       DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
     displayName: Set Hardened Entitlements
 
-  - script: |
-      set -e
-      pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
+  - script: pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
     displayName: Archive build
 
   - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip

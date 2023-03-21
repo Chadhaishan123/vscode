@@ -33,7 +33,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
+      key: "distro | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -113,6 +113,14 @@ steps:
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
+
+  - script: node build/azure-pipelines/distro/mixin-quality
+    displayName: Mixin distro quality
+
+  - script: node build/lib/builtInExtensions.js
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download built-in extensions
 
   - script: |
       set -e

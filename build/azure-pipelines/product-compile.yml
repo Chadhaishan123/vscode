@@ -23,24 +23,27 @@ steps:
 
   - script: |
       mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH > .build/yarnlockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/yarnlockhash
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare cache inputs
 
-  # using `genericNodeModules` instead of `nodeModules` here to avoid sharing the cache with builds running inside containers
   - task: Cache@2
     inputs:
-      key: "genericNodeModules | $(Agent.OS) | .build/yarnlockhash"
+      ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+        key: "oss | $(Agent.OS) | .build/yarnlockhash"
+      ${{ else }}:
+        key: "distro | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
 
   # Cache built-in extensions to avoid GH rate limits.
-  - task: Cache@2
-    inputs:
-      key: '"builtInDeps" | .build/builtindepshash'
-      path: .build/builtInExtensions
-    displayName: Restore built-in extensions
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      - task: Cache@2
+        inputs:
+          key: '"builtInDeps" | .build/builtindepshash'
+          path: .build/builtInExtensions
+        displayName: Restore built-in extensions
 
   - script: tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
@@ -82,11 +85,6 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: yarn --frozen-lockfile --check-files
-        workingDirectory: .build/distro/npm
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Install distro node modules
-
       - script: node build/azure-pipelines/distro/mixin-npm
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
@@ -176,5 +174,5 @@ steps:
         displayName: "Component Detection"
         inputs:
           sourceScanPath: $(Build.SourcesDirectory)
-          alertWarningLevel: 'Medium'
+          alertWarningLevel: Medium
         continueOnError: true

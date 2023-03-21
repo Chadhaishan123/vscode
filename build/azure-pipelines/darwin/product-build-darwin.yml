@@ -53,16 +53,20 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
+      ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+        key: "oss | $(Agent.OS) | .build/yarnlockhash"
+      ${{ else }}:
+        key: "distro | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
 
-  - task: Cache@2
-    inputs:
-      key: '"builtInDeps" | .build/builtindepshash'
-      path: .build/builtInExtensions
-    displayName: Restore built-in extensions
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      - task: Cache@2
+        inputs:
+          key: '"builtInDeps" | .build/builtindepshash'
+          path: .build/builtInExtensions
+        displayName: Restore built-in extensions
 
   - script: tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))

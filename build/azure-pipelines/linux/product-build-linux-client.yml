@@ -73,9 +73,9 @@ steps:
   - task: Cache@2
     inputs:
       ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-        key: "genericNodeModules | $(Agent.OS) | .build/yarnlockhash"
+        key: "oss | $(Agent.OS) | .build/yarnlockhash"
       ${{ else }}:
-        key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
+        key: "distro | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
