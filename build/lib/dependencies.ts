@@ -90,7 +90,7 @@ export function getProductionDependencies(folderPath: string): FlatDependency[] 
 			result.push({
 				name,
 				version: distroPackageJson.dependencies[name],
-				path: path.join(root, '.build', 'distro', 'npm', relativeFolderPath, 'node_modules', name)
+				path: path.join(realFolderPath, 'node_modules', name)
 			});
 		}
 	}
