@@ -207,27 +207,10 @@ steps:
   - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
       - task: DownloadPipelineArtifact@2
         inputs:
-          artifact: vscode_cli_linux_arm64_cli
+          artifact: vscode_cli_linux_$(VSCODE_ARCH)_cli
           patterns: "**"
           path: $(Build.ArtifactStagingDirectory)/cli
         displayName: Download VS Code CLI
-        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
-
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: vscode_cli_linux_x64_cli
-          patterns: "**"
-          path: $(Build.ArtifactStagingDirectory)/cli
-        displayName: Download VS Code CLI
-        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
-
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: vscode_cli_linux_armhf_cli
-          patterns: "**"
-          path: $(Build.ArtifactStagingDirectory)/cli
-        displayName: Download VS Code CLI
-        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'armhf'))
 
       - script: |
           set -e
