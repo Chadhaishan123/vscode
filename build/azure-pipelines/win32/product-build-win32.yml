@@ -29,8 +29,6 @@ steps:
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - template: ../distro/download-distro.yml
-        parameters:
-          pwsh: true
 
       - task: AzureKeyVault@1
         displayName: "Azure Key Vault: Get Secrets"

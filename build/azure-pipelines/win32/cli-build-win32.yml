@@ -14,8 +14,6 @@ parameters:
 steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - template: ../distro/download-distro.yml
-        parameters:
-          pwsh: true
       - pwsh: node build/azure-pipelines/distro/apply-cli-patches
         displayName: Apply distro patches
 

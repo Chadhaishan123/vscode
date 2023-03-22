@@ -106,6 +106,7 @@ steps:
 
   - script: |
       set -e
+
       for i in {1..5}; do # try 5 times
         yarn --cwd build --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
@@ -114,11 +115,6 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
-    displayName: Install build dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      set -e
 
       if [ -z "$CC" ] || [ -z "$CXX" ]; then
         # Download clang based on chromium revision used by vscode
