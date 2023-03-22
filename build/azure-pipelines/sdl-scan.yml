@@ -103,16 +103,7 @@ stages:
           - script: node build/azure-pipelines/distro/mixin-quality
             displayName: Mixin distro quality
 
-          - powershell: |
-              . build/azure-pipelines/win32/exec.ps1
-              . build/azure-pipelines/win32/retry.ps1
-              $ErrorActionPreference = "Stop"
-              retry { exec { yarn compile } }
-            env:
-              npm_config_arch: "$(NPM_ARCH)"
-              PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-              GITHUB_TOKEN: "$(github-distro-mixin-password)"
-              CHILD_CONCURRENCY: 1
+          - powershell: yarn compile
             displayName: Compile
 
           - task: CodeQL3000Finalize@0
