@@ -21,6 +21,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff {
 		const timeout = options.maxComputationTimeMs === 0 ? InfiniteTimeout.instance : new DateTimeout(options.maxComputationTimeMs);
+		const considerWhitespaceChanges = !options.ignoreTrimWhitespace;
 
 		const perfectHashes = new Map<string, number>();
 		function getOrCreateHash(text: string): number {
@@ -67,6 +68,10 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const alignments: RangeMapping[] = [];
 
 		const scanForWhitespaceChanges = (equalLinesCount: number) => {
+			if (!considerWhitespaceChanges) {
+				return;
+			}
+
 			for (let i = 0; i < equalLinesCount; i++) {
 				const seq1Offset = seq1LastStart + i;
 				const seq2Offset = seq2LastStart + i;
@@ -75,7 +80,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 					const characterDiffs = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
 						new OffsetRange(seq1Offset, seq1Offset + 1),
 						new OffsetRange(seq2Offset, seq2Offset + 1),
-					), timeout);
+					), timeout, considerWhitespaceChanges);
 					for (const a of characterDiffs.maps) {
 						alignments.push(a);
 					}
@@ -99,7 +104,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			seq1LastStart = diff.seq1Range.endExclusive;
 			seq2LastStart = diff.seq2Range.endExclusive;
 
-			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff, timeout);
+			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff, timeout, considerWhitespaceChanges);
 			for (const a of characterDiffs.maps) {
 				alignments.push(a);
 			}
@@ -112,9 +117,9 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		return new LinesDiff(changes, hitTimeout);
 	}
 
-	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout): { maps: RangeMapping[]; hitTimeout: boolean } {
-		const sourceSlice = new Slice(originalLines, diff.seq1Range);
-		const targetSlice = new Slice(modifiedLines, diff.seq2Range);
+	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean): { maps: RangeMapping[]; hitTimeout: boolean } {
+		const sourceSlice = new Slice(originalLines, diff.seq1Range, considerWhitespaceChanges);
+		const targetSlice = new Slice(modifiedLines, diff.seq2Range, considerWhitespaceChanges);
 
 		const diffResult = sourceSlice.length + targetSlice.length < 500
 			? this.dynamicProgrammingDiffing.compute(sourceSlice, targetSlice, timeout)
@@ -314,33 +319,25 @@ function getIndentation(str: string): number {
 }
 
 class Slice implements ISequence {
-	private readonly elements: Int32Array;
-	private readonly firstCharOnLineOffsets: Int32Array;
+	private readonly elements: number[] = [];
+	private readonly firstCharOnLineOffsets: number[] = [];
+	private readonly trimStartLength: number[] = [];
 
-	constructor(public readonly lines: string[], public readonly lineRange: OffsetRange) {
-		let chars = 0;
-		this.firstCharOnLineOffsets = new Int32Array(lineRange.length);
-
+	constructor(public readonly lines: string[], public readonly lineRange: OffsetRange, public readonly considerWhitespaceChanges: boolean) {
 		for (let i = lineRange.start; i < lineRange.endExclusive; i++) {
-			const line = lines[i];
-			chars += line.length;
-			this.firstCharOnLineOffsets[i - lineRange.start] = chars + 1;
-			chars++;
-		}
-
-		this.elements = new Int32Array(chars);
-		let offset = 0;
-		for (let i = lineRange.start; i < lineRange.endExclusive; i++) {
-			const line = lines[i];
+			const l = lines[i];
+			const l1 = considerWhitespaceChanges ? l : l.trimStart();
+			const line = considerWhitespaceChanges ? l1 : l1.trimEnd();
+			this.trimStartLength.push(l.length - l1.length);
 
 			for (let i = 0; i < line.length; i++) {
-				this.elements[offset + i] = line.charCodeAt(i);
+				this.elements.push(line.charCodeAt(i));
 			}
-			offset += line.length;
 			if (i < lines.length - 1) {
-				this.elements[offset] = '\n'.charCodeAt(0);
-				offset += 1;
+				this.elements.push('\n'.charCodeAt(0));
 			}
+
+			this.firstCharOnLineOffsets[i - lineRange.start] = this.elements.length;
 		}
 	}
 
@@ -401,7 +398,7 @@ class Slice implements ISequence {
 		}
 
 		const offsetOfPrevLineBreak = i === 0 ? 0 : this.firstCharOnLineOffsets[i - 1];
-		return new Position(i + 1, offset - offsetOfPrevLineBreak + 1);
+		return new Position(i + 1, this.trimStartLength[i] + offset - offsetOfPrevLineBreak + 1);
 	}
 
 	public translateRange(range: OffsetRange): Range {
